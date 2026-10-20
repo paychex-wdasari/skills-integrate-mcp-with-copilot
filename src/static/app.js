@@ -2,7 +2,94 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitiesList = document.getElementById("activities-list");
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
+  const signupSection = document.getElementById("signup-container");
   const messageDiv = document.getElementById("message");
+  const accountToggle = document.getElementById("account-toggle");
+  const accountPanel = document.getElementById("account-panel");
+  const loginForm = document.getElementById("teacher-login-form");
+  const teacherSession = document.getElementById("teacher-session");
+  const accountMessage = document.getElementById("account-message");
+  let isTeacher = false;
+
+  function escapeHTML(value) {
+    return String(value).replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    })[character]);
+  }
+
+  function renderAccountState(username = "") {
+    loginForm.hidden = isTeacher;
+    teacherSession.hidden = !isTeacher;
+    signupSection.hidden = !isTeacher;
+    accountToggle.textContent = isTeacher ? "Teacher account" : "Teacher login";
+    document.getElementById("signed-in-as").textContent = `Signed in as ${username}`;
+  }
+
+  async function refreshAccountState() {
+    try {
+      const response = await fetch("/auth/me");
+      const account = await response.json();
+      isTeacher = response.ok && account.authenticated;
+      renderAccountState(account.username || "");
+    } catch (error) {
+      isTeacher = false;
+      renderAccountState();
+    }
+  }
+
+  accountToggle.addEventListener("click", () => {
+    const isExpanded = accountToggle.getAttribute("aria-expanded") === "true";
+    accountToggle.setAttribute("aria-expanded", String(!isExpanded));
+    accountPanel.classList.toggle("hidden", isExpanded);
+  });
+
+  loginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const formData = new FormData(loginForm);
+
+    try {
+      const response = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(Object.fromEntries(formData.entries())),
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.detail || "Unable to log in.");
+      }
+
+      isTeacher = true;
+      renderAccountState(result.username);
+      loginForm.reset();
+      accountMessage.textContent = "Teacher login successful.";
+      accountMessage.className = "success";
+      fetchActivities();
+    } catch (error) {
+      accountMessage.textContent = error.message || "Unable to log in.";
+      accountMessage.className = "error";
+    }
+  });
+
+  document.getElementById("logout-button").addEventListener("click", async () => {
+    try {
+      const response = await fetch("/auth/logout", { method: "POST" });
+      if (!response.ok) {
+        throw new Error("Unable to log out. Please try again.");
+      }
+      isTeacher = false;
+      renderAccountState();
+      accountMessage.textContent = "You are signed out.";
+      accountMessage.className = "success";
+      fetchActivities();
+    } catch (error) {
+      accountMessage.textContent = error.message;
+      accountMessage.className = "error";
+    }
+  });
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -12,11 +99,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.replaceChildren(new Option("-- Select an activity --", ""));
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
         const activityCard = document.createElement("div");
         activityCard.className = "activity-card";
+        const safeName = escapeHTML(name);
+        const safeDescription = escapeHTML(details.description);
+        const safeSchedule = escapeHTML(details.schedule);
 
         const spotsLeft =
           details.max_participants - details.participants.length;
@@ -29,8 +120,10 @@ document.addEventListener("DOMContentLoaded", () => {
               <ul class="participants-list">
                 ${details.participants
                   .map(
-                    (email) =>
-                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
+                    (email) => {
+                      const safeEmail = escapeHTML(email);
+                      return `<li><span class="participant-email">${safeEmail}</span>${isTeacher ? `<button class="delete-btn" data-activity="${safeName}" data-email="${safeEmail}" aria-label="Unregister ${safeEmail} from ${safeName}">Remove</button>` : ""}</li>`;
+                    }
                   )
                   .join("")}
               </ul>
@@ -38,9 +131,9 @@ document.addEventListener("DOMContentLoaded", () => {
             : `<p><em>No participants yet</em></p>`;
 
         activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
+          <h4>${safeName}</h4>
+          <p>${safeDescription}</p>
+          <p><strong>Schedule:</strong> ${safeSchedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
           <div class="participants-container">
             ${participantsHTML}
@@ -69,6 +162,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Handle unregister functionality
   async function handleUnregister(event) {
+    if (!isTeacher) return;
+
     const button = event.target;
     const activity = button.getAttribute("data-activity");
     const email = button.getAttribute("data-email");
@@ -113,6 +208,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Handle form submission
   signupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    if (!isTeacher) return;
 
     const email = document.getElementById("email").value;
     const activity = document.getElementById("activity").value;
@@ -156,5 +252,5 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   // Initialize app
-  fetchActivities();
+  refreshAccountState().then(fetchActivities);
 });

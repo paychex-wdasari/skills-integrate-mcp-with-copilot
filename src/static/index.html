@@ -8,6 +8,42 @@
   </head>
   <body>
     <header>
+      <div class="header-account">
+        <button
+          id="account-toggle"
+          class="account-toggle"
+          type="button"
+          aria-controls="account-panel"
+          aria-expanded="false"
+        >
+          Teacher login
+        </button>
+        <div id="account-panel" class="account-panel hidden">
+          <form id="teacher-login-form">
+            <h3>Teacher login</h3>
+            <div class="form-group">
+              <label for="teacher-username">Username</label>
+              <input id="teacher-username" name="username" autocomplete="username" required />
+            </div>
+            <div class="form-group">
+              <label for="teacher-password">Password</label>
+              <input
+                id="teacher-password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+              />
+            </div>
+            <button type="submit">Log in</button>
+          </form>
+          <div id="teacher-session" hidden>
+            <p id="signed-in-as"></p>
+            <button id="logout-button" type="button">Log out</button>
+          </div>
+          <p id="account-message" class="hidden" aria-live="polite"></p>
+        </div>
+      </div>
       <h1>Mergington High School</h1>
       <h2>Extracurricular Activities</h2>
     </header>
@@ -21,7 +57,7 @@
         </div>
       </section>
 
-      <section id="signup-container">
+      <section id="signup-container" hidden>
         <h3>Sign Up for an Activity</h3>
         <form id="signup-form">
           <div class="form-group">
